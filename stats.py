@@ -62,14 +62,14 @@ if __name__ == "__main__":
         plt.figure(figsize=(20, 8))
         threshold = teams[team].mean_rate
         opp_means, opp_names = [], []
-        for j, opponent in enumerate(team_matches[team][:9]):
+        for j, opponent in enumerate(team_matches[team][:6]):
             opp_means.append(opponent.mean_rate)
             opp_names.append(opponent.name + ' (' + team_HA[team][j] + ')')
         bars = plt.bar(opp_names, opp_means)
         for bar in bars:
             yval = bar.get_height()
             plt.text(bar.get_x() + 0.3, yval + .05, round(threshold - yval, 1))
-        plt.plot([-1., 9.], [threshold, threshold], "k-")
+        plt.plot([-1., 6.], [threshold, threshold], "k-")
         plt.title(team)
         plt.tight_layout()
         plt.savefig('no_ha_pers/' + str(team) + '.png')
@@ -125,11 +125,11 @@ if __name__ == "__main__":
     for team in column_names:
         first_three[team], first[team], second[team], third[team] = 0, 0, 0, 0
 
-        plt.figure(figsize=(20, 8))
+    plt.figure(figsize=(20, 8))
     for i, team in enumerate(column_names):
         threshold = []
         opp_means, opp_names = [], []
-        for j, opponent in enumerate(team_matches[team][:9]):
+        for j, opponent in enumerate(team_matches[team][:6]):
             if team_HA[team][j] == 'H':
                 opp_means.append(opponent.RA)
                 threshold.append(teams[team].RH)
@@ -142,6 +142,84 @@ if __name__ == "__main__":
         for j, bar in enumerate(bars):
             yval = bar.get_height()
             plt.text(bar.get_x() + 0.3, yval + .05, round(threshold[j] - yval, 1))
+
+        plt.plot(range(0, 6), threshold, "k-")
+        plt.title(team)
+        plt.tight_layout()
+        plt.savefig('ha/' + str(team) + '.png')
+        plt.clf()
+
+    # учет личных
+    personal_coef = {}
+
+    pers = pd.read_csv('personal.csv')
+    pers = pers.replace('Арсенал', 'Арсенал Тула')
+    pers = pers.replace('Крылья', 'Крылья Советов')
+
+    for team in column_names:
+        personal_coef[team] = []
+
+    for index, row in pers.iterrows():
+        personal_coef[row['к1']].append(
+            (row['к1д'] - row['к2г'] + 3 * row['м']) / (6 * row['м']) if row['м'] != 0 else 0.5)
+        personal_coef[row['к2']].append(
+            (row['к2г'] - row['к1д'] + 3 * row['м']) / (6 * row['м']) if row['м'] != 0 else 0.5)
+
+    plt.figure(figsize=(20, 8))
+    for i, team in enumerate(column_names):
+        threshold = []
+        opp_means, opp_names = [], []
+        for j, opponent in enumerate(team_matches[team][:6]):
+            if team_HA[team][j] == 'H':
+                opp_means.append((0.5 + personal_coef[opponent.name][j]) * opponent.RA)
+                threshold.append((0.5 + personal_coef[team][j]) * teams[team].RH)
+            else:
+                opp_means.append((0.5 + personal_coef[opponent.name][j]) * opponent.RH)
+                threshold.append((0.5 + personal_coef[team][j]) * teams[team].RA)
+
+            opp_names.append(opponent.name + ' (' + team_HA[team][j] + ')')
+        bars = plt.bar(opp_names, opp_means)
+        for j, bar in enumerate(bars):
+            yval = bar.get_height()
+            plt.text(bar.get_x() + 0.3, yval + .05, round(threshold[j] - yval, 1))
+
+        plt.plot(range(0, 6), threshold, "k-")
+        plt.title(team)
+        plt.tight_layout()
+        plt.savefig('personal/' + str(team) + '.png')
+        plt.clf()
+
+    key_players = {}
+
+    for team in column_names:
+        key_players[team] = 0
+
+    players = pd.read_csv('players.csv')
+    players = players.replace('Арсенал', 'Арсенал Тула')
+    players = players.replace('Крылья', 'Крылья Советов')
+
+    for index, row in players.iterrows():
+        key_players[row['команда']] += float(row['оценка'])
+
+    plt.figure(figsize=(20, 8))
+    for i, team in enumerate(column_names):
+        threshold = []
+        opp_means, opp_names = [], []
+        for j, opponent in enumerate(team_matches[team][:6]):
+
+            if team_HA[team][j] == 'H':
+                opp_means.append((0.5 + personal_coef[opponent.name][j]) * opponent.RA + key_players[opponent.name])
+                threshold.append((0.5 + personal_coef[team][j]) * teams[team].RH + key_players[team])
+            else:
+                opp_means.append((0.5 + personal_coef[opponent.name][j]) * opponent.RH + key_players[opponent.name])
+                threshold.append((0.5 + personal_coef[team][j]) * teams[team].RA + key_players[team])
+
+            opp_names.append(opponent.name + ' (' + team_HA[team][j] + ')')
+        num_opps = np.arange(len(opp_names))
+        bars = plt.bar(num_opps, opp_means)
+        for j, bar in enumerate(bars):
+            yval = bar.get_height()
+            plt.text(bar.get_x() + 0.3, yval + .05, round(threshold[j] - yval, 1))
             if j < 3:
                 first_three[team] += round(threshold[j] - yval, 1)
             if j == 0:
@@ -151,11 +229,13 @@ if __name__ == "__main__":
             elif j == 2:
                 third[team] = round(threshold[j] - yval, 1)
 
-        plt.plot(range(0, 9), threshold, "k-")
+        plt.plot(range(0, 6), threshold, "k-")
         plt.title(team)
+        plt.xticks(num_opps, opp_names)
         plt.tight_layout()
-        plt.savefig('ha/' + str(team) + '.png')
+        plt.savefig('players/' + str(team) + '.png')
         plt.clf()
+
 
     first_three_arr = []
     for team in column_names:
